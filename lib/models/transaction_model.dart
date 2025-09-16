@@ -40,18 +40,17 @@ class TransactionModel {
     };
   }
 
-  // Create TransactionModel from Map (from database)
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
     return TransactionModel(
       id: map['id'],
       userId: map['user_id'],
-      title: map['title'],
+      title: map['title'] ?? '', // Handle potential null
       amount: map['amount'].toDouble(),
-      type: map['type'],
-      category: map['category'],
+      type: map['type'] ?? '', // Handle potential null
+      category: map['category'] ?? '', // Handle potential null
       date: DateTime.parse(map['date']),
-      description: map['description'],
-      icon: map['icon'],
+      description: map['description'], // This can be null - don't provide default
+      icon: map['icon'], // This can be null
       createdAt: DateTime.parse(map['created_at']),
     );
   }

@@ -82,8 +82,8 @@ class DatabaseHelper {
         type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
         category TEXT NOT NULL,
         date TEXT NOT NULL,
-        description TEXT,
-        icon TEXT,
+        description TEXT NULL,
+        icon TEXT NULL,
         created_at TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
       )
@@ -277,6 +277,67 @@ class DatabaseHelper {
     }
 
     return result;
+  }
+  // Add this method to your DatabaseHelper class in the TRANSACTION OPERATIONS section
+
+  Future<int> updateTransaction(TransactionModel transaction) async {
+    final db = await database;
+
+    // If it's an expense, we need to handle budget updates
+    if (transaction.isExpense) {
+      // Get the old transaction to calculate budget adjustment
+      final oldTransactionMaps = await db.query(
+        'transactions',
+        where: 'id = ?',
+        whereArgs: [transaction.id],
+      );
+
+      if (oldTransactionMaps.isNotEmpty) {
+        final oldTransaction = TransactionModel.fromMap(oldTransactionMaps.first);
+
+        // If category or amount changed, update budget spent amounts
+        if (oldTransaction.category != transaction.category ||
+            oldTransaction.amount != transaction.amount) {
+
+          // Reduce old category budget spent amount
+          await _reduceBudgetSpentAmount(
+              transaction.userId,
+              oldTransaction.category,
+              oldTransaction.amount
+          );
+
+          // Add new amount to new category budget
+          await _updateBudgetSpentAmount(
+              transaction.userId,
+              transaction.category,
+              transaction.amount
+          );
+        }
+      }
+    }
+
+    return await db.update(
+      'transactions',
+      transaction.toMap(),
+      where: 'id = ?',
+      whereArgs: [transaction.id],
+    );
+  }
+
+// Also add this helper method for budget adjustments
+  Future<void> _reduceBudgetSpentAmount(int userId, String category, double amount) async {
+    final now = DateTime.now();
+    final db = await database;
+
+    await db.rawUpdate('''
+    UPDATE budgets 
+    SET spent_amount = CASE 
+      WHEN spent_amount - ? < 0 THEN 0 
+      ELSE spent_amount - ? 
+    END,
+    updated_at = ?
+    WHERE user_id = ? AND category = ? AND month = ? AND year = ? AND is_active = 1
+  ''', [amount, amount, now.toIso8601String(), userId, category, now.month, now.year]);
   }
 
   Future<List<TransactionModel>> getTransactionsByUser(
@@ -645,3 +706,4 @@ class DatabaseHelper {
     };
   }
 }
+

@@ -1476,7 +1476,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showAddTransaction(String type) async {
-    final result = await showDialog(
+    final result = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AddExpenseDialog(transactionType: type);
@@ -1485,7 +1485,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Refresh dashboard if transaction was added
     if (result == true) {
-      await _refreshDashboard();
+      setState(() {
+        // This will trigger a rebuild and refresh your dashboard data
+      });
     }
   }
 

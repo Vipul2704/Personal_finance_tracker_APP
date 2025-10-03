@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../core/constants/colors.dart';
+import '../../../core/utils/image_helper.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import 'add_expense_dialog.dart';
 import 'analytics_page.dart';
 import 'budget_page.dart';
 import 'add_expense_dialog.dart';
+import 'package:personal_finance_tracker/core/database/database_helper.dart';
+import 'package:personal_finance_tracker/presentation/screens/profile/profile_screen.dart';
+import 'package:personal_finance_tracker/presentation/providers/theme_provider.dart';
+import 'package:personal_finance_tracker/presentation/screens/settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -1447,19 +1452,40 @@ class _HomeScreenState extends State<HomeScreen> {
       // Already on Home
         break;
       case 1:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const AnalyticsPage()),
-        );
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.user?.id;
+
+        if (userId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AnalyticsPage(userId: userId)),
+          );
+        } else {
+          _showComingSoon('Analytics - Please login first');
+        }
         break;
       case 2:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const BudgetPage()),
-        );
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.user?.id;
+
+        if (userId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => BudgetPage(userId: userId,)),
+          );
+        }
         break;
       case 3:
-        _showComingSoon('Profile');
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        if (authProvider.isAuthenticated && authProvider.user != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ProfileScreen()),
+          );
+        } else {
+          _showComingSoon('Profile - Please login first');
+        }
         break;
     }
   }
@@ -1492,7 +1518,90 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showScanReceipt() {
-    _showComingSoon('Receipt Scanning');
+    // Show bottom sheet to select expense or income with receipt scanning
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Scan Receipt',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Choose transaction type for your receipt',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildBottomSheetOption(
+                    'Expense Receipt',
+                    Icons.receipt_long,
+                    AppColors.expense,
+                        () {
+                      Navigator.pop(context);
+                      _showAddTransaction('expense');
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildBottomSheetOption(
+                    'Income Receipt',
+                    Icons.receipt,
+                    AppColors.income,
+                        () {
+                      Navigator.pop(context);
+                      _showAddTransaction('income');
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+  void _showAddTransactionWithCamera(String type) async {
+    // Simply use the existing AddExpenseDialog - it already has camera functionality
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AddExpenseDialog(transactionType: type);
+      },
+    );
+
+    if (result == true) {
+      setState(() {
+        // Refresh dashboard
+      });
+    }
   }
 
   void _showVoiceEntry() {
@@ -1551,11 +1660,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showProfile() {
-    _showComingSoon('Profile Management');
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.isAuthenticated && authProvider.user != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ProfileScreen()),
+      );
+    } else {
+      _showComingSoon('Profile - Please login first');
+    }
+
   }
 
   void _showSettings() {
-    _showComingSoon('Settings');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+    );
   }
 
   Future<void> _showLogoutDialog(AuthProvider authProvider) async {
@@ -1586,10 +1707,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showDetailedAnalytics() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AnalyticsPage()),
-    );
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.user?.id;
+
+    if (userId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => AnalyticsPage(userId: userId)),
+      );
+    } else {
+      _showComingSoon('Analytics - Please login first');
+    }
   }
 
   void _showAllTransactions() {

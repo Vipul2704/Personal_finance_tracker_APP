@@ -29,7 +29,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, // Updated version to include new tables
+      version: 3, // Updated version to include image_path column
       onCreate: _createDb,
       onUpgrade: _upgradeDb,
     );
@@ -72,7 +72,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Transactions table
+    // Transactions table - Updated with image_path column
     await db.execute('''
       CREATE TABLE transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,6 +84,7 @@ class DatabaseHelper {
         date TEXT NOT NULL,
         description TEXT NULL,
         icon TEXT NULL,
+        image_path TEXT NULL,
         created_at TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
       )
@@ -156,6 +157,10 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       // Add new tables for version 2
       await _createDb(db, newVersion);
+    }
+    if (oldVersion < 3) {
+      // Add image_path column to transactions table
+      await db.execute('ALTER TABLE transactions ADD COLUMN image_path TEXT NULL');
     }
   }
 
@@ -278,7 +283,6 @@ class DatabaseHelper {
 
     return result;
   }
-  // Add this method to your DatabaseHelper class in the TRANSACTION OPERATIONS section
 
   Future<int> updateTransaction(TransactionModel transaction) async {
     final db = await database;
@@ -324,7 +328,7 @@ class DatabaseHelper {
     );
   }
 
-// Also add this helper method for budget adjustments
+  // Helper method for budget adjustments
   Future<void> _reduceBudgetSpentAmount(int userId, String category, double amount) async {
     final now = DateTime.now();
     final db = await database;
@@ -449,11 +453,41 @@ class DatabaseHelper {
 
   Future<int> deleteTransaction(int transactionId) async {
     final db = await database;
+
+    // Get transaction details first to handle image cleanup
+    final transactionMaps = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+
+    if (transactionMaps.isNotEmpty) {
+      final transaction = TransactionModel.fromMap(transactionMaps.first);
+
+      // Delete associated image file if exists
+      if (transaction.imagePath != null && transaction.imagePath!.isNotEmpty) {
+        await _deleteImageFile(transaction.imagePath!);
+      }
+    }
+
     return await db.delete(
       'transactions',
       where: 'id = ?',
       whereArgs: [transactionId],
     );
+  }
+
+  // Helper method to delete image files
+  Future<void> _deleteImageFile(String imagePath) async {
+    try {
+      final file = File(imagePath);
+      if (await file.exists()) {
+        await file.delete();
+        print('Deleted image file: $imagePath');
+      }
+    } catch (e) {
+      print('Error deleting image file: $e');
+    }
   }
 
   // ==================== BUDGET OPERATIONS ====================
@@ -706,4 +740,3 @@ class DatabaseHelper {
     };
   }
 }
-

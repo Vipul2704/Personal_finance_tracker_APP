@@ -1,8 +1,7 @@
 // lib/presentation/providers/budget_provider.dart
 import 'package:flutter/foundation.dart';
-import '../../core/database/database_helper.dart';
+import 'package:personal_finance_tracker/core/database/database_helper.dart';
 import '../../models/budget_model.dart';
-
 
 class BudgetProvider extends ChangeNotifier {
   final DatabaseHelper _databaseHelper = DatabaseHelper();
@@ -62,6 +61,7 @@ class BudgetProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       debugPrint('Error loading budgets: $e');
+      notifyListeners();
     }
   }
 
@@ -172,6 +172,7 @@ class BudgetProvider extends ChangeNotifier {
     // Check if budget already exists
     if (hasBudget(category, month: targetMonth, year: targetYear)) {
       _error = 'Budget already exists for this category';
+      notifyListeners();
       return false;
     }
 
@@ -190,12 +191,18 @@ class BudgetProvider extends ChangeNotifier {
 
   // Update budget amount
   Future<bool> updateBudgetAmount(int budgetId, double newAmount) async {
-    final budget = _budgets.firstWhere((b) => b.id == budgetId);
-    final updatedBudget = budget.copyWith(
-      budgetAmount: newAmount,
-      updatedAt: DateTime.now(),
-    );
-    return await updateBudget(updatedBudget);
+    try {
+      final budget = _budgets.firstWhere((b) => b.id == budgetId);
+      final updatedBudget = budget.copyWith(
+        budgetAmount: newAmount,
+        updatedAt: DateTime.now(),
+      );
+      return await updateBudget(updatedBudget);
+    } catch (e) {
+      _error = 'Budget not found';
+      notifyListeners();
+      return false;
+    }
   }
 
   // Get budget alerts (categories that are over 80% spent)
@@ -246,7 +253,7 @@ class BudgetProvider extends ChangeNotifier {
         }
       }
     } else if (currentMonthBudgets.isNotEmpty) {
-      recommendations.add('Great job! All your budgets are on track this month.');
+      recommendations.add('All your budgets are on track this month.');
     } else {
       recommendations.add('Set up budgets for your expense categories to better track your spending.');
     }
@@ -270,6 +277,7 @@ class BudgetProvider extends ChangeNotifier {
         'overallPercentage': 0.0,
         'categoriesOverBudget': 0,
         'categoriesOnTrack': 0,
+        'budgets': <BudgetModel>[],
       };
     }
 
@@ -292,6 +300,44 @@ class BudgetProvider extends ChangeNotifier {
   // Refresh budgets
   Future<void> refreshBudgets(int userId) async {
     await loadBudgets(userId);
+  }
+
+  // Update spent amounts based on transactions
+  Future<void> updateSpentAmounts(int userId) async {
+    _setLoading(true);
+    try {
+      // Get current month's expenses by category
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1);
+      final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+      final expensesByCategory = await _databaseHelper.getExpensesByCategory(
+        userId,
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+      );
+
+      // Update each budget's spent amount
+      for (final budget in currentMonthBudgets) {
+        final spentAmount = expensesByCategory[budget.category] ?? 0.0;
+        if (budget.spentAmount != spentAmount) {
+          final updatedBudget = budget.copyWith(
+            spentAmount: spentAmount,
+            updatedAt: DateTime.now(),
+          );
+          await _databaseHelper.updateBudget(updatedBudget);
+        }
+      }
+
+      // Reload budgets to reflect changes
+      await loadBudgets(userId);
+      _error = null;
+    } catch (e) {
+      _error = e.toString();
+      debugPrint('Error updating spent amounts: $e');
+    } finally {
+      _setLoading(false);
+    }
   }
 
   // Clear data (for logout)
@@ -318,18 +364,72 @@ class BudgetProvider extends ChangeNotifier {
       {'category': 'Shopping', 'amount': 8000.0},
       {'category': 'Entertainment', 'amount': 3000.0},
       {'category': 'Bills & Utilities', 'amount': 6000.0},
+      {'category': 'Healthcare', 'amount': 4000.0},
+      {'category': 'Personal Care', 'amount': 2000.0},
     ];
 
-    for (final budgetData in defaultBudgets) {
-      if (!hasBudget(budgetData['category'] as String, month: targetMonth, year: targetYear)) {
-        await createBudgetForCategory(
-          userId,
-          budgetData['category'] as String,
-          budgetData['amount'] as double,
-          month: targetMonth,
-          year: targetYear,
-        );
+    _setLoading(true);
+    try {
+      int created = 0;
+      for (final budgetData in defaultBudgets) {
+        final category = budgetData['category'] as String;
+        final amount = budgetData['amount'] as double;
+
+        if (!hasBudget(category, month: targetMonth, year: targetYear)) {
+          final success = await createBudgetForCategory(
+            userId,
+            category,
+            amount,
+            month: targetMonth,
+            year: targetYear,
+          );
+          if (success) created++;
+        }
       }
+
+      if (created > 0) {
+        _error = null;
+      }
+    } catch (e) {
+      _error = e.toString();
+      debugPrint('Error creating default budgets: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Delete budget (soft delete by setting isActive to false)
+  Future<bool> deleteBudget(BudgetModel budget) async {
+    final deactivatedBudget = budget.copyWith(
+      isActive: false,
+      updatedAt: DateTime.now(),
+    );
+
+    return await updateBudget(deactivatedBudget);
+  }
+
+  // Get budgets by period
+  List<BudgetModel> getBudgetsByPeriod(String period) {
+    final now = DateTime.now();
+
+    switch (period.toLowerCase()) {
+      case 'weekly':
+      // For weekly, we'll show current month budgets
+      // You can implement more sophisticated weekly logic later
+        return currentMonthBudgets;
+      case 'monthly':
+        return currentMonthBudgets;
+      case 'quarterly':
+      // Show budgets for current quarter
+        final quarterStart = ((now.month - 1) ~/ 3) * 3 + 1;
+        return _budgets.where((budget) =>
+        budget.year == now.year &&
+            budget.month >= quarterStart &&
+            budget.month < quarterStart + 3 &&
+            budget.isActive
+        ).toList();
+      default:
+        return currentMonthBudgets;
     }
   }
 }

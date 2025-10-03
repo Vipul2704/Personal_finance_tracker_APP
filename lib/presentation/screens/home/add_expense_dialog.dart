@@ -1,9 +1,12 @@
 // lib/presentation/screens/dashboard/add_expense_dialog.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/database/database_helper.dart';
+import '../../../core/utils/image_helper.dart';
 import '../../../models/transaction_model.dart';
 import '../../../models/category_model.dart';
 import '../../providers/auth_provider.dart';
@@ -34,6 +37,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
   bool _isLoading = false;
   List<CategoryModel> _categories = [];
 
+  // Image handling variables
+  String? _selectedImagePath;
+  bool _isImageLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +56,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
       _descriptionController.text = transaction.description ?? '';
       _selectedCategory = transaction.category;
       _selectedDate = transaction.date;
+      _selectedImagePath = transaction.imagePath; // Load existing image path
     }
   }
 
@@ -95,7 +103,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
-        constraints: const BoxConstraints(maxHeight: 600),
+        constraints: const BoxConstraints(maxHeight: 700),
         padding: const EdgeInsets.all(24),
         child: SingleChildScrollView(
           child: Form(
@@ -122,6 +130,10 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
                 // Date Field
                 _buildDateField(),
+                const SizedBox(height: 16),
+
+                // Image Section
+                _buildImageSection(),
                 const SizedBox(height: 16),
 
                 // Description Field (Optional)
@@ -408,6 +420,170 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     );
   }
 
+  Widget _buildImageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Receipt/Bill (Optional)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            if (_selectedImagePath != null)
+              TextButton.icon(
+                onPressed: _removeImage,
+                icon: const Icon(Icons.delete_outline, size: 16),
+                label: const Text('Remove', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_selectedImagePath != null)
+          _buildImagePreview()
+        else
+          _buildImagePickerButtons(),
+      ],
+    );
+  }
+
+  Widget _buildImagePreview() {
+    return Container(
+      width: double.infinity,
+      height: 200,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            Image.file(
+              File(_selectedImagePath!),
+              width: double.infinity,
+              height: 200,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 200,
+                  color: Colors.grey.shade100,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                      SizedBox(height: 8),
+                      Text('Image not found', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                );
+              },
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: _showImagePickerDialog,
+                      icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    ),
+                    IconButton(
+                      onPressed: _removeImage,
+                      icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImagePickerButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildImagePickerButton(
+            'Camera',
+            Icons.camera_alt_outlined,
+            AppColors.secondary,
+                () => _pickImage(ImageSource.camera),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildImagePickerButton(
+            'Gallery',
+            Icons.photo_library_outlined,
+            AppColors.primary,
+                () => _pickImage(ImageSource.gallery),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagePickerButton(String title, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: _isImageLoading ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: _isImageLoading
+            ? const Column(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(height: 8),
+            Text('Loading...', style: TextStyle(fontSize: 12)),
+          ],
+        )
+            : Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDescriptionField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -503,6 +679,134 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
     );
   }
 
+  // Image handling methods
+  Future<void> _pickImage(ImageSource source) async {
+    setState(() {
+      _isImageLoading = true;
+    });
+
+    try {
+      String? imagePath;
+      if (source == ImageSource.camera) {
+        imagePath = await ImageHelper.pickImageFromCamera();
+      } else {
+        imagePath = await ImageHelper.pickImageFromGallery();
+      }
+
+      if (imagePath != null) {
+        setState(() {
+          _selectedImagePath = imagePath;
+        });
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to pick image: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isImageLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showImagePickerDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Select Image Source',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildBottomSheetOption(
+                    'Camera',
+                    Icons.camera_alt_outlined,
+                    AppColors.secondary,
+                        () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.camera);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildBottomSheetOption(
+                    'Gallery',
+                    Icons.photo_library_outlined,
+                    AppColors.primary,
+                        () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.gallery);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSheetOption(String title, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImagePath = null;
+    });
+  }
+
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -581,6 +885,7 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
         date: _selectedDate,
         description: cleanDescription ?? '', // Use empty string if null
         icon: iconValue ?? '', // Use empty string if null
+        imagePath: _selectedImagePath, // Include image path
         createdAt: widget.editTransaction?.createdAt ?? DateTime.now(),
       );
 
@@ -588,6 +893,12 @@ class _AddExpenseDialogState extends State<AddExpenseDialog> {
 
       if (widget.editTransaction != null) {
         // Update existing transaction
+        // Handle image cleanup if image was changed
+        final oldImagePath = widget.editTransaction!.imagePath;
+        if (oldImagePath != null && oldImagePath != _selectedImagePath) {
+          await ImageHelper.deleteImage(oldImagePath);
+        }
+
         await dbHelper.updateTransaction(transaction);
         _showSuccessSnackBar('Transaction updated successfully');
       } else {

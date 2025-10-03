@@ -1,88 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:personal_finance_tracker/presentation/providers/budget_provider.dart';
+import 'package:personal_finance_tracker/models/budget_model.dart';
+
 
 class BudgetPage extends StatefulWidget {
-  const BudgetPage({super.key});
+  final int userId;
+
+  const BudgetPage({super.key, required this.userId});
 
   @override
   State<BudgetPage> createState() => _BudgetPageState();
 }
 
 class _BudgetPageState extends State<BudgetPage> {
-  List<Budget> budgets = [
-    Budget(
-      id: 1,
-      category: 'Food & Dining',
-      allocated: 15000.0,
-      spent: 11000.0,
-      period: 'monthly',
-      color: const Color(0xFFFF6B6B),
-      icon: '🍽️',
-    ),
-    Budget(
-      id: 2,
-      category: 'Transportation',
-      allocated: 8000.0,
-      spent: 9600.0,
-      period: 'monthly',
-      color: const Color(0xFF4ECDC4),
-      icon: '🚗',
-    ),
-    Budget(
-      id: 3,
-      category: 'Entertainment',
-      allocated: 6000.0,
-      spent: 3600.0,
-      period: 'monthly',
-      color: const Color(0xFF45B7D1),
-      icon: '🎮',
-    ),
-    Budget(
-      id: 4,
-      category: 'Shopping',
-      allocated: 10000.0,
-      spent: 8500.0,
-      period: 'monthly',
-      color: const Color(0xFF96CEB4),
-      icon: '🛍️',
-    ),
-    Budget(
-      id: 5,
-      category: 'Healthcare',
-      allocated: 4000.0,
-      spent: 3000.0,
-      period: 'monthly',
-      color: const Color(0xFFFFEAA7),
-      icon: '🏥',
-    ),
-  ];
-
   String selectedPeriod = 'monthly';
   final TextEditingController categoryController = TextEditingController();
   final TextEditingController amountController = TextEditingController();
-  String newBudgetPeriod = 'monthly';
 
-  final List<AIRecommendation> aiRecommendations = [
-    AIRecommendation(
-      type: 'warning',
-      message: 'Transportation budget exceeded by ₹1,600. Consider carpooling or public transport.',
-      action: 'Optimize',
-    ),
-    AIRecommendation(
-      type: 'suggestion',
-      message: 'You have ₹2,400 unused in Entertainment. Consider reallocating to savings.',
-      action: 'Reallocate',
-    ),
-    AIRecommendation(
-      type: 'insight',
-      message: 'Your spending pattern shows 15% increase compared to last month.',
-      action: 'Analyze',
-    ),
+  // Category options for dropdown
+  final List<String> categoryOptions = [
+    'Food & Dining',
+    'Transportation',
+    'Entertainment',
+    'Shopping',
+    'Healthcare',
+    'Bills & Utilities',
+    'Education',
+    'Travel',
+    'Personal Care',
+    'Other'
   ];
 
-  double get totalAllocated => budgets.fold(0.0, (sum, budget) => sum + budget.allocated);
-  double get totalSpent => budgets.fold(0.0, (sum, budget) => sum + budget.spent);
-  double get remainingBudget => totalAllocated - totalSpent;
+  @override
+  void initState() {
+    super.initState();
+    _initializeBudgets();
+  }
+
+  void _initializeBudgets() async {
+    final budgetProvider = context.read<BudgetProvider>();
+    await budgetProvider.initializeForUser(widget.userId);
+  }
 
   @override
   void dispose() {
@@ -115,69 +75,7 @@ class _BudgetPageState extends State<BudgetPage> {
     }
   }
 
-  void _addBudget() {
-    if (categoryController.text.isNotEmpty && amountController.text.isNotEmpty) {
-      final newBudget = Budget(
-        id: DateTime.now().millisecondsSinceEpoch,
-        category: categoryController.text,
-        allocated: double.tryParse(amountController.text) ?? 0.0,
-        spent: 0.0,
-        period: newBudgetPeriod,
-        color: _getRandomColor(),
-        icon: _getCategoryIcon(categoryController.text),
-      );
-
-      setState(() {
-        budgets.add(newBudget);
-      });
-
-      categoryController.clear();
-      amountController.clear();
-      newBudgetPeriod = 'monthly';
-    }
-  }
-
-  void _deleteBudget(int id) {
-    setState(() {
-      budgets.removeWhere((budget) => budget.id == id);
-    });
-  }
-
-  void _editBudget(Budget budget) {
-    categoryController.text = budget.category;
-    amountController.text = budget.allocated.toString();
-    newBudgetPeriod = budget.period;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => _buildAddEditBudgetDialog(isEdit: true, budgetId: budget.id),
-    );
-  }
-
-  void _updateBudget(int budgetId) {
-    if (categoryController.text.isNotEmpty && amountController.text.isNotEmpty) {
-      setState(() {
-        final index = budgets.indexWhere((budget) => budget.id == budgetId);
-        if (index != -1) {
-          budgets[index] = Budget(
-            id: budgetId,
-            category: categoryController.text,
-            allocated: double.tryParse(amountController.text) ?? 0.0,
-            spent: budgets[index].spent,
-            period: newBudgetPeriod,
-            color: budgets[index].color,
-            icon: _getCategoryIcon(categoryController.text),
-          );
-        }
-      });
-
-      categoryController.clear();
-      amountController.clear();
-      newBudgetPeriod = 'monthly';
-    }
-  }
-
-  Color _getRandomColor() {
+  Color _getCategoryColor(String category) {
     final colors = [
       const Color(0xFFFF6B6B),
       const Color(0xFF4ECDC4),
@@ -188,7 +86,7 @@ class _BudgetPageState extends State<BudgetPage> {
       const Color(0xFF6C5CE7),
       const Color(0xFFA29BFE),
     ];
-    return colors[budgets.length % colors.length];
+    return colors[category.hashCode % colors.length];
   }
 
   String _getCategoryIcon(String category) {
@@ -200,7 +98,8 @@ class _BudgetPageState extends State<BudgetPage> {
     if (categoryLower.contains('health')) return '🏥';
     if (categoryLower.contains('education')) return '📚';
     if (categoryLower.contains('utility') || categoryLower.contains('bill')) return '💡';
-    if (categoryLower.contains('rent') || categoryLower.contains('home')) return '🏠';
+    if (categoryLower.contains('travel')) return '✈️';
+    if (categoryLower.contains('personal') || categoryLower.contains('care')) return '💄';
     return '💰';
   }
 
@@ -214,12 +113,126 @@ class _BudgetPageState extends State<BudgetPage> {
   void _showAddBudgetDialog() {
     categoryController.clear();
     amountController.clear();
-    newBudgetPeriod = 'monthly';
 
     showDialog(
       context: context,
       builder: (BuildContext context) => _buildAddEditBudgetDialog(isEdit: false),
     );
+  }
+
+  void _addBudget() async {
+    if (categoryController.text.isNotEmpty && amountController.text.isNotEmpty) {
+      final budgetProvider = context.read<BudgetProvider>();
+      final amount = double.tryParse(amountController.text) ?? 0.0;
+
+      if (amount <= 0) {
+        _showErrorSnackBar('Please enter a valid amount');
+        return;
+      }
+
+      final success = await budgetProvider.createBudgetForCategory(
+        widget.userId,
+        categoryController.text,
+        amount,
+      );
+
+      if (success) {
+        categoryController.clear();
+        amountController.clear();
+        Navigator.pop(context);
+        _showSuccessSnackBar('Budget added successfully!');
+      } else {
+        _showErrorSnackBar(budgetProvider.error ?? 'Failed to add budget');
+      }
+    } else {
+      _showErrorSnackBar('Please fill in all fields');
+    }
+  }
+
+  void _editBudget(BudgetModel budget) {
+    categoryController.text = budget.category;
+    amountController.text = budget.budgetAmount.toString();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => _buildAddEditBudgetDialog(
+        isEdit: true,
+        budget: budget,
+      ),
+    );
+  }
+
+  void _updateBudget(BudgetModel budget) async {
+    if (categoryController.text.isNotEmpty && amountController.text.isNotEmpty) {
+      final budgetProvider = context.read<BudgetProvider>();
+      final amount = double.tryParse(amountController.text) ?? 0.0;
+
+      if (amount <= 0) {
+        _showErrorSnackBar('Please enter a valid amount');
+        return;
+      }
+
+      final updatedBudget = budget.copyWith(
+        category: categoryController.text,
+        budgetAmount: amount,
+        updatedAt: DateTime.now(),
+      );
+
+      final success = await budgetProvider.updateBudget(updatedBudget);
+
+      if (success) {
+        categoryController.clear();
+        amountController.clear();
+        Navigator.pop(context);
+        _showSuccessSnackBar('Budget updated successfully!');
+      } else {
+        _showErrorSnackBar(budgetProvider.error ?? 'Failed to update budget');
+      }
+    } else {
+      _showErrorSnackBar('Please fill in all fields');
+    }
+  }
+
+  void _deleteBudget(BudgetModel budget) async {
+    final budgetProvider = context.read<BudgetProvider>();
+
+    // Create a deactivated version of the budget
+    final deactivatedBudget = budget.copyWith(
+      isActive: false,
+      updatedAt: DateTime.now(),
+    );
+
+    final success = await budgetProvider.updateBudget(deactivatedBudget);
+
+    if (success) {
+      _showSuccessSnackBar('${budget.category} budget deleted');
+    } else {
+      _showErrorSnackBar(budgetProvider.error ?? 'Failed to delete budget');
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _createDefaultBudgets() async {
+    final budgetProvider = context.read<BudgetProvider>();
+    await budgetProvider.createDefaultBudgets(widget.userId);
+    _showSuccessSnackBar('Default budgets created!');
   }
 
   @override
@@ -243,42 +256,74 @@ class _BudgetPageState extends State<BudgetPage> {
         ),
         actions: [
           IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notifications feature coming soon!')),
-              );
-            },
-            icon: const Icon(Icons.notifications_outlined, color: Colors.grey),
+            onPressed: () => context.read<BudgetProvider>().refreshBudgets(widget.userId),
+            icon: const Icon(Icons.refresh, color: Colors.grey),
           ),
-          IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings feature coming soon!')),
-              );
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.grey),
+            onSelected: (value) {
+              if (value == 'create_defaults') {
+                _createDefaultBudgets();
+              }
             },
-            icon: const Icon(Icons.settings_outlined, color: Colors.grey),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'create_defaults',
+                child: Text('Create Default Budgets'),
+              ),
+            ],
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildOverviewCards(),
-            const SizedBox(height: 24),
-            _buildPeriodSelector(),
-            const SizedBox(height: 24),
-            _buildAIRecommendations(),
-            const SizedBox(height: 24),
-            _buildBudgetCategories(),
-          ],
-        ),
+      body: Consumer<BudgetProvider>(
+        builder: (context, budgetProvider, child) {
+          if (budgetProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (budgetProvider.error != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error: ${budgetProvider.error}',
+                    style: TextStyle(color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => budgetProvider.refreshBudgets(widget.userId),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildOverviewCards(budgetProvider),
+                const SizedBox(height: 24),
+                _buildPeriodSelector(),
+                const SizedBox(height: 24),
+                _buildAIRecommendations(budgetProvider),
+                const SizedBox(height: 24),
+                _buildBudgetCategories(budgetProvider),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildOverviewCards() {
+  Widget _buildOverviewCards(BudgetProvider budgetProvider) {
     return Column(
       children: [
         Row(
@@ -286,7 +331,7 @@ class _BudgetPageState extends State<BudgetPage> {
             Expanded(
               child: _buildOverviewCard(
                 title: 'Total Budget',
-                amount: totalAllocated,
+                amount: budgetProvider.totalCurrentMonthBudget,
                 icon: Icons.account_balance_wallet,
                 color: Colors.blue,
               ),
@@ -295,7 +340,7 @@ class _BudgetPageState extends State<BudgetPage> {
             Expanded(
               child: _buildOverviewCard(
                 title: 'Total Spent',
-                amount: totalSpent,
+                amount: budgetProvider.totalCurrentMonthSpent,
                 icon: Icons.trending_up,
                 color: Colors.red,
               ),
@@ -304,10 +349,16 @@ class _BudgetPageState extends State<BudgetPage> {
         ),
         const SizedBox(height: 12),
         _buildOverviewCard(
-          title: remainingBudget >= 0 ? 'Remaining Budget' : 'Over Budget',
-          amount: remainingBudget.abs(),
-          icon: remainingBudget >= 0 ? Icons.savings : Icons.warning,
-          color: remainingBudget >= 0 ? Colors.green : Colors.red,
+          title: budgetProvider.totalCurrentMonthRemaining >= 0
+              ? 'Remaining Budget'
+              : 'Over Budget',
+          amount: budgetProvider.totalCurrentMonthRemaining.abs(),
+          icon: budgetProvider.totalCurrentMonthRemaining >= 0
+              ? Icons.savings
+              : Icons.warning,
+          color: budgetProvider.totalCurrentMonthRemaining >= 0
+              ? Colors.green
+              : Colors.red,
           isFullWidth: true,
         ),
       ],
@@ -413,7 +464,10 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget _buildAIRecommendations() {
+  Widget _buildAIRecommendations(BudgetProvider budgetProvider) {
+    final recommendations = budgetProvider.getSpendingRecommendations();
+    final alerts = budgetProvider.getBudgetAlerts();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -452,28 +506,37 @@ class _BudgetPageState extends State<BudgetPage> {
             ],
           ),
           const SizedBox(height: 16),
-          ...aiRecommendations.map((rec) => _buildRecommendationCard(rec)).toList(),
+          if (alerts.isNotEmpty) ...[
+            ...alerts.take(3).map((alert) => _buildRecommendationCard(
+              alert['message'] as String,
+              alert['severity'] as String,
+            )).toList(),
+          ],
+          ...recommendations.take(2).map((rec) => _buildRecommendationCard(
+            rec,
+            'insight',
+          )).toList(),
         ],
       ),
     );
   }
 
-  Widget _buildRecommendationCard(AIRecommendation recommendation) {
+  Widget _buildRecommendationCard(String message, String type) {
     Color iconColor;
     IconData iconData;
 
-    switch (recommendation.type) {
+    switch (type) {
+      case 'critical':
+        iconColor = Colors.red;
+        iconData = Icons.error;
+        break;
       case 'warning':
         iconColor = Colors.orange;
         iconData = Icons.warning;
         break;
-      case 'suggestion':
+      default:
         iconColor = Colors.blue;
         iconData = Icons.lightbulb;
-        break;
-      default:
-        iconColor = Colors.green;
-        iconData = Icons.trending_up;
     }
 
     return Padding(
@@ -497,24 +560,8 @@ class _BudgetPageState extends State<BudgetPage> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                recommendation.message,
+                message,
                 style: const TextStyle(fontSize: 13, color: Colors.black87),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${recommendation.action} feature coming soon!')),
-                );
-              },
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                recommendation.action,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -523,7 +570,9 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget _buildBudgetCategories() {
+  Widget _buildBudgetCategories(BudgetProvider budgetProvider) {
+    final budgets = budgetProvider.currentMonthBudgets;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -572,15 +621,16 @@ class _BudgetPageState extends State<BudgetPage> {
               padding: const EdgeInsets.all(32),
               child: Column(
                 children: [
-                  Icon(Icons.account_balance_wallet_outlined, size: 64, color: Colors.grey.shade400),
+                  Icon(Icons.account_balance_wallet_outlined,
+                      size: 64, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
                   Text(
-                    'No budgets created yet',
+                    'No budgets for this month',
                     style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Tap "Add Budget" to create your first budget',
+                    'Create your first budget or set up default budgets',
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                     textAlign: TextAlign.center,
                   ),
@@ -594,10 +644,11 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget _buildBudgetCard(Budget budget) {
-    final progress = getProgressPercentage(budget.spent, budget.allocated);
-    final status = getBudgetStatus(budget.spent, budget.allocated);
+  Widget _buildBudgetCard(BudgetModel budget) {
+    final progress = getProgressPercentage(budget.spentAmount, budget.budgetAmount);
+    final status = getBudgetStatus(budget.spentAmount, budget.budgetAmount);
     final statusColor = getStatusColor(status);
+    final categoryColor = _getCategoryColor(budget.category);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -613,11 +664,11 @@ class _BudgetPageState extends State<BudgetPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: budget.color.withOpacity(0.1),
+                  color: categoryColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  budget.icon,
+                  _getCategoryIcon(budget.category),
                   style: const TextStyle(fontSize: 24),
                 ),
               ),
@@ -633,10 +684,10 @@ class _BudgetPageState extends State<BudgetPage> {
                         fontSize: 16,
                       ),
                     ),
-                    Text(
-                      '${budget.period.toUpperCase()} BUDGET',
+                    const Text(
+                      'MONTHLY BUDGET',
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: Colors.grey,
                         fontSize: 12,
                       ),
                     ),
@@ -682,7 +733,7 @@ class _BudgetPageState extends State<BudgetPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${formatCurrency(budget.spent)} / ${formatCurrency(budget.allocated)}',
+                '${formatCurrency(budget.spentAmount)} / ${formatCurrency(budget.budgetAmount)}',
                 style: const TextStyle(fontSize: 14, color: Colors.grey),
               ),
               Row(
@@ -718,7 +769,7 @@ class _BudgetPageState extends State<BudgetPage> {
           if (status == BudgetStatus.exceeded) ...[
             const SizedBox(height: 8),
             Text(
-              'Over budget by ${formatCurrency(budget.spent - budget.allocated)}',
+              'Over budget by ${formatCurrency(budget.spentAmount - budget.budgetAmount)}',
               style: const TextStyle(
                 color: Colors.red,
                 fontSize: 12,
@@ -731,7 +782,7 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  void _showDeleteConfirmation(Budget budget) {
+  void _showDeleteConfirmation(BudgetModel budget) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -745,11 +796,8 @@ class _BudgetPageState extends State<BudgetPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                _deleteBudget(budget.id);
+                _deleteBudget(budget);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${budget.category} budget deleted')),
-                );
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Delete', style: TextStyle(color: Colors.white)),
@@ -760,7 +808,7 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  Widget _buildAddEditBudgetDialog({required bool isEdit, int? budgetId}) {
+  Widget _buildAddEditBudgetDialog({required bool isEdit, BudgetModel? budget}) {
     return StatefulBuilder(
       builder: (context, setDialogState) {
         return AlertDialog(
@@ -769,14 +817,42 @@ class _BudgetPageState extends State<BudgetPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: categoryController,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    hintText: 'e.g., Groceries, Utilities',
-                    border: OutlineInputBorder(),
+                if (isEdit)
+                  TextField(
+                    controller: categoryController,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(),
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    value: categoryController.text.isEmpty ? null : categoryController.text,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: categoryOptions.map((category) {
+                      final budgetProvider = context.read<BudgetProvider>();
+                      final hasExisting = budgetProvider.hasBudget(category);
+
+                      return DropdownMenuItem(
+                        value: category,
+                        enabled: !hasExisting,
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            color: hasExisting ? Colors.grey : Colors.black,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        categoryController.text = value;
+                      }
+                    },
                   ),
-                ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: amountController,
@@ -789,25 +865,6 @@ class _BudgetPageState extends State<BudgetPage> {
                     prefixText: '₹ ',
                   ),
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: newBudgetPeriod,
-                  decoration: const InputDecoration(
-                    labelText: 'Period',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: ['weekly', 'monthly', 'quarterly'].map((period) {
-                    return DropdownMenuItem(
-                      value: period,
-                      child: Text(period.toUpperCase()),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      newBudgetPeriod = value ?? 'monthly';
-                    });
-                  },
-                ),
               ],
             ),
           ),
@@ -817,23 +874,16 @@ class _BudgetPageState extends State<BudgetPage> {
                 Navigator.pop(context);
                 categoryController.clear();
                 amountController.clear();
-                newBudgetPeriod = 'monthly';
               },
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
-                if (isEdit && budgetId != null) {
-                  _updateBudget(budgetId);
+                if (isEdit && budget != null) {
+                  _updateBudget(budget);
                 } else {
                   _addBudget();
                 }
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isEdit ? 'Budget updated successfully!' : 'Budget added successfully!'),
-                  ),
-                );
               },
               child: Text(isEdit ? 'Update' : 'Add Budget'),
             ),
@@ -844,37 +894,5 @@ class _BudgetPageState extends State<BudgetPage> {
   }
 }
 
-// Data Models
-class Budget {
-  final int id;
-  final String category;
-  final double allocated;
-  final double spent;
-  final String period;
-  final Color color;
-  final String icon;
-
-  Budget({
-    required this.id,
-    required this.category,
-    required this.allocated,
-    required this.spent,
-    required this.period,
-    required this.color,
-    required this.icon,
-  });
-}
-
-class AIRecommendation {
-  final String type;
-  final String message;
-  final String action;
-
-  AIRecommendation({
-    required this.type,
-    required this.message,
-    required this.action,
-  });
-}
-
+// Enums
 enum BudgetStatus { good, warning, exceeded }

@@ -14,6 +14,7 @@ import 'package:personal_finance_tracker/presentation/screens/auth/signup_screen
 import 'package:personal_finance_tracker/presentation/screens/auth/auth_wrapper.dart';
 import 'package:personal_finance_tracker/presentation/providers/auth_provider.dart';
 import 'package:personal_finance_tracker/presentation/screens/home/home_screen.dart';
+import 'package:personal_finance_tracker/presentation/providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,79 +27,141 @@ void main() async {
 class PersonalFinanceTrackerApp extends StatelessWidget {
   const PersonalFinanceTrackerApp({super.key});
 
+  // Light Theme
+  ThemeData get _lightTheme => ThemeData(
+    primaryColor: AppColors.primary,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: Brightness.light,
+    ),
+    useMaterial3: true,
+    scaffoldBackgroundColor: AppColors.background,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      elevation: 0,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.defaultPadding,
+          vertical: 12,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
+        ),
+      ),
+    ),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Colors.white,
+      selectedItemColor: AppColors.primary,
+      unselectedItemColor: Colors.grey,
+      type: BottomNavigationBarType.fixed,
+      elevation: 8,
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      elevation: 6,
+    ),
+    cardTheme: CardThemeData(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
+      ),
+      color: Colors.white,
+      shadowColor: Colors.grey.withOpacity(0.2),
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.primary,
+      linearTrackColor: Colors.grey,
+    ),
+  );
+
+  // Dark Theme
+  ThemeData get _darkTheme => ThemeData(
+    primaryColor: AppColors.primary,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: Brightness.dark,
+    ),
+    useMaterial3: true,
+    scaffoldBackgroundColor: const Color(0xFF121212),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF1E1E1E),
+      foregroundColor: Colors.white,
+      elevation: 0,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.defaultPadding,
+          vertical: 12,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
+        ),
+      ),
+    ),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: Color(0xFF1E1E1E),
+      selectedItemColor: AppColors.primary,
+      unselectedItemColor: Colors.grey,
+      type: BottomNavigationBarType.fixed,
+      elevation: 8,
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      elevation: 6,
+    ),
+    cardTheme: CardThemeData(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
+      ),
+      color: const Color(0xFF1E1E1E),
+      shadowColor: Colors.black54,
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.primary,
+      linearTrackColor: Colors.grey,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
         ChangeNotifierProvider<TransactionProvider>(create: (_) => TransactionProvider()),
-        ChangeNotifierProvider<BudgetProvider>(create: (_) => BudgetProvider()), // your existing one
+        ChangeNotifierProvider<BudgetProvider>(create: (_) => BudgetProvider()),
         ChangeNotifierProvider<CategoryProvider>(create: (_) => CategoryProvider()),
         ChangeNotifierProvider<GoalProvider>(create: (_) => GoalProvider()),
         ChangeNotifierProvider<NotificationProvider>(create: (_) => NotificationProvider()),
         ChangeNotifierProvider<DashboardProvider>(create: (_) => DashboardProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()..loadTheme()),
       ],
-      child: MaterialApp(
-        title: AppConstants.appName,
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primaryColor: AppColors.primary,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: AppColors.primary,
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppConstants.defaultPadding,
-                vertical: 12,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-              ),
-            ),
-          ),
-          bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-            backgroundColor: Colors.white,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: Colors.grey,
-            type: BottomNavigationBarType.fixed,
-            elevation: 8,
-          ),
-          floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            elevation: 6,
-          ),
-          cardTheme: CardThemeData(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppConstants.defaultBorderRadius),
-            ),
-            color: Colors.white,
-            shadowColor: Colors.grey.withOpacity(0.2),
-          ),
-          progressIndicatorTheme: const ProgressIndicatorThemeData(
-            color: AppColors.primary,
-            linearTrackColor: Colors.grey,
-          ),
-        ),
-        // NAMED ROUTES
-        routes: {
-          '/': (context) => const AuthWrapper(),
-          '/login': (context) => const LoginScreen(),
-          '/signup': (context) => const SignupScreen(),
-          '/home': (context) => const HomeScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: AppConstants.appName,
+            debugShowCheckedModeBanner: false,
+            theme: themeProvider.isDarkMode ? _darkTheme : _lightTheme,
+            // NAMED ROUTES
+            routes: {
+              '/': (context) => const AuthWrapper(),
+              '/login': (context) => const LoginScreen(),
+              '/signup': (context) => const SignupScreen(),
+              '/home': (context) => const HomeScreen(),
+            },
+            initialRoute: '/',
+          );
         },
-        initialRoute: '/',
       ),
     );
   }
